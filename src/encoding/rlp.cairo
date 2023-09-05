@@ -5,6 +5,7 @@ use clone::Clone;
 use traits::{Into, TryInto};
 use cairo_lib::utils::types::bytes::{Bytes, BytesTryIntoU256};
 use cairo_lib::utils::types::byte::Byte;
+use debug::PrintTrait;
 
 // @notice Enum with all possible RLP types
 #[derive(Drop, PartialEq)]
@@ -118,6 +119,70 @@ fn rlp_decode_list(ref input: Bytes) -> Span<Bytes> {
     };
     output.span()
 }
+
+fn rlp_encode_byte_array(data: Array,ref output: Array) -> Bytes {
+    let data_len = data.len();
+
+    if data_len < 56 {
+        output.append(0x80 + data_len);
+        let data_copy = data.slice(0, data_len);
+        output.append(data_copy);
+    } else {
+        //TODO: Convert data length to bytes
+        let bytes_data_copy = 0;
+        let data_copy = data.slice(0, data_len);
+
+        //TODO: use the length of the length in bytes to add to append
+        output.append(0x80 + bytes_data_copy.len());
+        output.append(bytes_data_copy);
+        output.append(data_copy);        
+    }
+}
+
+
+fn rlp_encode_list(data: Array) -> Bytes {
+    let data_len = data.len();
+    let mut output = ArrayTrait::new();
+    // In RLP encoding, if the list length is less than 55, the length can be 
+    // directly added to 0xC0 to form the first byte of the encoded output.
+    // This compactly encodes both the fact that this is a list and its length.
+    if data_len < 56 {
+        output.append(0xc0 + data_len);
+        let data_copy = data.slice(0, data_len);
+        output.append(data_copy);
+    // In RLP encoding, if the list length is greater than 55, the length itself
+    // needs to be encoded as a byte array(this byte array is the lenght of the list). The first byte is then formed by adding
+    // the length of this byte array to 0xF7. This allows for lists of arbitrary
+    // length to be encoded.
+    } else {
+        //TODO: Convert data length to bytes
+        let bytes_data_copy = 0;
+        let data_copy = data.slice(0, data_len);
+
+        //TODO: use the length of the length in bytes to add to append
+        output.append(0xf7 + bytes_data_copy.len());
+        output.append(bytes_data_copy);
+        output.append(data_copy);
+    }
+
+    return output;
+}
+
+fn rlp_encode_felt(input_data: felt252, ref rlp_array: Array) {
+    if input_data == 0 {
+        rlp_array.append(0x80);
+    } else if input_data < 127 {
+        rlp_array.append(input_data);
+    } else {
+        // TODO: Implement split_felt
+        let (high, low) = split_felt(input_data);
+        // TODO: transform the new uint256 into ByteArray / Bytes
+        let data_copy : Array = convert_uint256_into_byte_array(high, low);
+        rlp_encode_byte_array(data_copy, rlp_array);
+
+    }
+}
+
 
 impl RLPItemPartialEq of PartialEq<RLPItem> {
     fn eq(lhs: @RLPItem, rhs: @RLPItem) -> bool {
